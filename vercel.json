@@ -1,0 +1,37 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://raw.githubusercontent.com; frame-ancestors 'none'; base-uri 'self'"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/health",
+      "destination": "/api/health"
+    },
+    {
+      "source": "/health/:path*",
+      "destination": "/api/health"
+    },
+    {
+      "source": "/apps/:path*",
+      "destination": "/index.html"
+    }
+  ]
+}

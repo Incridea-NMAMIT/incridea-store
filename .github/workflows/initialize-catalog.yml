@@ -1,0 +1,19 @@
+name: Initialize public catalog
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: public-android-catalog
+  cancel-in-progress: false
+jobs:
+  initialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - run: python3 scripts/initialize_catalog.py
+        env:
+          STORE_TOKEN: ${{ secrets.GITHUB_TOKEN }}

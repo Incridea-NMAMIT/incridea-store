@@ -1,0 +1,6 @@
+{
+  "name": "incridea-store", "version": "1.0.0", "private": true, "type": "module",
+  "scripts": {"dev":"vite --host 127.0.0.1 --port 3007", "build":"tsc --noEmit && vite build", "preview":"vite preview --port 3007", "start":"node scripts/serve.mjs", "test":"python3 -m unittest discover -s tests"},
+  "dependencies":{"react":"^19.2.7","react-dom":"^19.2.7","zod":"^4.6.5"},
+  "devDependencies":{"@types/react":"^19.2.16","@types/react-dom":"^19.2.3","@vitejs/plugin-react":"^5.1.1","typescript":"~5.9.3","vite":"^7.3.2"}
+}

@@ -1,0 +1,61 @@
+name: Publish verified Android releases
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  repository_dispatch:
+    types: [android-release-ready]
+  workflow_dispatch:
+    inputs:
+      repository:
+        type: choice
+        required: true
+        options:
+          - Incridea-NMAMIT/incridea-dashboard
+          - Incridea-NMAMIT/incridea-operations
+          - Incridea-NMAMIT/incridea-deploy
+      run_id:
+        type: string
+        required: true
+permissions:
+  contents: write
+# One catalog writer across all apps. Never cancel a partial publication.
+concurrency:
+  group: public-android-catalog
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: main, persist-credentials: false}
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21'}
+      - uses: android-actions/setup-android@v3
+      - name: Install APK inspection tools
+        run: sdkmanager 'build-tools;36.0.0'
+      - uses: actions/create-github-app-token@v2
+        id: source
+        with:
+          app-id: ${{ vars.STORE_GITHUB_APP_ID }}
+          private-key: ${{ secrets.STORE_GITHUB_APP_PRIVATE_KEY }}
+          owner: Incridea-NMAMIT
+          repositories: |
+            incridea-dashboard
+            incridea-operations
+            incridea-deploy
+          permission-actions: read
+      - name: Verify APKs, publish releases, and update catalog
+        env:
+          SOURCE_REPOSITORY: ${{ inputs.repository || github.event.client_payload.repository }}
+          SOURCE_RUN_ID: ${{ inputs.run_id || github.event.client_payload.run_id }}
+          SOURCE_TOKEN: ${{ steps.source.outputs.token }}
+          STORE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SIGNING_FINGERPRINTS: ${{ vars.STORE_SIGNING_FINGERPRINTS }}
+        run: |
+          export APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          export AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          if [[ "$GITHUB_EVENT_NAME" == schedule ]]; then
+            python3 scripts/reconcile.py
+          else
+            python3 scripts/publish.py
+          fi
