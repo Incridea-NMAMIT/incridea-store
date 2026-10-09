@@ -2,6 +2,14 @@
 
 Official black-and-white Android app catalog for https://apps.incridea.in. This repository is public; APK source repositories may remain private. The store is website-only by explicit exception to web/Android feature parity.
 
+Publication fails closed if a target release contains unexpected assets or
+ambiguous APK names, or if a candidate signing key differs from catalog history.
+All matrix candidates receive these checks before any release is published;
+asset policy is checked again immediately before each publication. Investigate
+and repair conflicting drafts through an authorized manual review. The publisher
+does not delete assets or migrate signing keys automatically. GitHub repository
+writers can still modify releases outside this workflow; protect that authority.
+
 ## Local development and hosting
 
 Node 24: `npm ci`, then `npm run dev` (localhost:3007). `npm run build` produces `dist`. `npm test` covers release publication and bootstrap integration contracts. No signing secrets or GitHub tokens belong in frontend environment variables.

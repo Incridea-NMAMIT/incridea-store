@@ -76,6 +76,24 @@ class PublicationTests(unittest.TestCase):
         moved=redirect.redirect_request(req,None,302,'',{},'https://production.blob.core.windows.net/file')
         self.assertFalse(moved.has_header('Authorization'))
         with self.assertRaises(ValueError):redirect.redirect_request(req,None,302,'',{},'https://attacker.test/file')
+    def test_unapproved_draft_assets_are_never_made_public(self):
+        from unittest.mock import Mock
+        for extra_name in ['private-source.zip','release.aab','signing.jks','build.log','other.apk']:
+            github=Mock();github.optional.return_value={'id':10,'draft':True}
+            github.pages.return_value=[{'id':30,'name':extra_name}]
+            github.upload.return_value={'id':20,'name':'dashboard-1001.apk','size':len(APK),'digest':'sha256:'+hashlib.sha256(APK).hexdigest(),'browser_download_url':release()['downloadUrl']}
+            github.request.return_value={'published_at':release()['publishedAt']}
+            with self.subTest(asset=extra_name),self.assertRaises(ValueError):
+                p.publish_asset(github,'tag','dashboard-1001.apk',release(),APK)
+            github.upload.assert_not_called();github.request.assert_not_called()
+    def test_ambiguous_duplicate_release_assets_fail_closed(self):
+        from unittest.mock import Mock
+        github=Mock();github.optional.return_value={'id':10,'draft':True}
+        asset={'id':20,'name':'dashboard-1001.apk','size':len(APK),'digest':'sha256:'+hashlib.sha256(APK).hexdigest(),'browser_download_url':release()['downloadUrl']}
+        github.pages.return_value=[asset,{**asset,'id':21}]
+        github.request.return_value={'published_at':release()['publishedAt']}
+        with self.assertRaises(ValueError):p.publish_asset(github,'tag',asset['name'],release(),APK)
+        github.upload.assert_not_called();github.request.assert_not_called()
     def test_shared_catalog_concurrency_and_compare_and_swap(self):
         workflow=(Path(__file__).parents[1]/'.github/workflows/publish-android.yml').read_text()
         init=(Path(__file__).parents[1]/'.github/workflows/initialize-catalog.yml').read_text()

@@ -123,11 +123,18 @@ def apk_from_archive(content, digest):
         return archive.read(apks[0])
 
 
+def validate_signing_continuity(catalog, package_id, release):
+    app = next((a for a in catalog['apps'] if a['packageId'] == package_id), None)
+    if app and any(previous['signingSha256'] != release['signingSha256'] for previous in app['releases']):
+        raise ValueError('Signing key changes require a deliberate migration')
+
+
 def merge_release(catalog, package_id, release):
     if catalog.get('schemaVersion') != 1 or not isinstance(catalog.get('apps'), list):
         raise ValueError('Unsupported catalog')
     if len({a['packageId'] for a in catalog['apps']}) != len(catalog['apps']):
         raise ValueError('Duplicate catalog apps')
+    validate_signing_continuity(catalog, package_id, release)
     app = next((a for a in catalog['apps'] if a['packageId'] == package_id), None)
     if app is None:
         app = {'packageId': package_id, 'releases': []}
@@ -137,12 +144,17 @@ def merge_release(catalog, package_id, release):
         if existing != release:
             raise ValueError('Conflicting metadata for an existing version code')
         return False
-    if app['releases'] and app['releases'][0]['signingSha256'] != release['signingSha256']:
-        raise ValueError('Signing key changes require a deliberate migration')
     app['releases'].append(release)
     app['releases'].sort(key=lambda r: r['versionCode'], reverse=True)
     catalog['updatedAt'] = max(catalog['updatedAt'], release['publishedAt'])
     return True
+
+
+def validate_release_assets(assets, name):
+    # Publishing a draft exposes every asset, not just the APK selected below.
+    # Fail closed rather than deleting or silently publishing unexpected material.
+    if any(asset.get('name') != name for asset in assets) or len(assets) > 1:
+        raise ValueError('Release contains unapproved or ambiguous assets')
 
 
 def publish_asset(github, tag, name, metadata, apk):
@@ -150,6 +162,7 @@ def publish_asset(github, tag, name, metadata, apk):
     if release is None:
         release = github.request(f'/repos/{STORE}/releases', 'POST', {'tag_name': tag, 'target_commitish': 'main', 'name': name, 'body': metadata['changelog'], 'draft': True, 'prerelease': False})
     assets = github.pages(f'/repos/{STORE}/releases/{release["id"]}/assets')
+    validate_release_assets(assets, name)
     existing = next((a for a in assets if a['name'] == name), None)
     if existing is None:
         existing = github.upload(release['id'], name, apk)
@@ -194,9 +207,15 @@ def main():
             path.write_bytes(apk)
             metadata = inspect_apk(path, package_id, certificates.get(package_id, ''), int(run['run_number']))
         metadata.update({'sourceSha': run['head_sha'], 'runId': run_id, 'changelog': f'Signed Android release {metadata["versionName"]}. Built from commit {run["head_sha"][:12]}.'})
+        validate_signing_continuity(catalog, package_id, metadata)
         old = next((r for a in catalog['apps'] if a['packageId'] == package_id for r in a['releases'] if r['versionCode'] == metadata['versionCode']), None)
         if old and any(old[key] != value for key, value in metadata.items()):
             raise ValueError('Conflicting release metadata')
+        # Check every matrix draft before exposing any of this run's releases.
+        tag = f'{slug}-{metadata["versionCode"]}-{run["head_sha"][:12]}'
+        existing_release = github.optional(f'/repos/{STORE}/releases/tags/{tag}')
+        if existing_release is not None:
+            validate_release_assets(github.pages(f'/repos/{STORE}/releases/{existing_release["id"]}/assets'), f'{slug}-{metadata["versionCode"]}.apk')
         prepared.append((package_id, slug, metadata, apk))
     changed = False
     for package_id, slug, metadata, apk in prepared:

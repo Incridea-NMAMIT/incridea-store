@@ -49,6 +49,35 @@ class GithubFixture:
         self.assets[release_id]=[asset];return asset
 
 class RecoveryTests(unittest.TestCase):
+    def test_matrix_rejects_unapproved_later_draft_before_any_publication(self):
+        repository='Incridea-NMAMIT/incridea-operations'
+        packages={'in.incridea.operations':'operations','in.incridea.pronite':'pronite'}
+        class MatrixFixture(GithubFixture):
+            def optional(self,path,source=False):
+                if '/releases/tags/pronite-' in path:return {'id':99,'draft':True}
+                return super().optional(path,source)
+            def pages(self,path,key=None,source=False):
+                if path.endswith('/artifacts'):return [{'id':20+index,'name':f'signed-{package}-{SHA}','expired':False,'workflow_run':{'id':123,'head_sha':SHA},'digest':'sha256:'+hashlib.sha256(self.archive).hexdigest()} for index,package in enumerate(packages)]
+                if path.endswith('/releases/99/assets'):return [{'id':90,'name':'private-source.zip'}]
+                return super().pages(path,key,source)
+            def request(self,path,method='GET',data=None,source=False,binary=False):
+                value=super().request(path,method,data,source,binary)
+                if path.endswith('/actions/runs/123'):value['repository']['full_name']=repository
+                return value
+        github=MatrixFixture();github.fail_write=False
+        metadata={'versionCode':1001,'versionName':'1.0.0+ci.1','minimumSdk':26,'size':11,'sha256':hashlib.sha256(b'fixture apk').hexdigest(),'signingSha256':'a'*64}
+        env={'SOURCE_REPOSITORY':repository,'SOURCE_RUN_ID':'123','SOURCE_TOKEN':'fixture','STORE_TOKEN':'fixture','SIGNING_FINGERPRINTS':json.dumps({package:'a'*64 for package in packages})}
+        with patch.dict(os.environ,env),patch.object(p,'Github',return_value=github),patch.object(p,'inspect_apk',return_value=metadata):
+            with self.assertRaisesRegex(ValueError,'unapproved'):p.main()
+        self.assertEqual(github.uploads,0);self.assertEqual(github.releases,{})
+    def test_signing_key_change_is_rejected_before_publication(self):
+        github=GithubFixture();github.fail_write=False
+        github.catalog={'schemaVersion':1,'updatedAt':'2026-10-08T00:00:00Z','apps':[{'packageId':PACKAGE,'releases':[{'versionCode':1000,'signingSha256':'c'*64}]}]}
+        metadata={'versionCode':1001,'versionName':'1.0.0+ci.1','minimumSdk':26,'size':11,'sha256':hashlib.sha256(b'fixture apk').hexdigest(),'signingSha256':'a'*64}
+        env={'SOURCE_REPOSITORY':REPO,'SOURCE_RUN_ID':'123','SOURCE_TOKEN':'fixture','STORE_TOKEN':'fixture','SIGNING_FINGERPRINTS':json.dumps({PACKAGE:'a'*64})}
+        with patch.dict(os.environ,env),patch.object(p,'Github',return_value=github),patch.object(p,'inspect_apk',return_value=metadata):
+            with self.assertRaisesRegex(ValueError,'Signing key'):p.main()
+        self.assertEqual(github.uploads,0);self.assertEqual(github.releases,{})
     def test_partial_publication_replay_recovers_catalog_without_duplicate_assets(self):
         github=GithubFixture()
         metadata={'versionCode':1001,'versionName':'1.0.0+ci.1','minimumSdk':26,'size':11,'sha256':hashlib.sha256(b'fixture apk').hexdigest(),'signingSha256':'a'*64}
