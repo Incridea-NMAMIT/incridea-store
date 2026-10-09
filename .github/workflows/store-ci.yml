@@ -1,0 +1,66 @@
+name: Store image CI
+on:
+  workflow_call:
+    inputs:
+      application_id: {type: string, required: true}
+      dockerfile: {type: string, required: true}
+permissions:
+  contents: read
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Build and publish Store image
+        id: image
+        env:
+          APP: ${{ inputs.application_id }}
+          DOCKERFILE: ${{ inputs.dockerfile }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          [[ "$APP" == incridea-store && "$DOCKERFILE" == Dockerfile ]]
+          tag="ghcr.io/incridea-nmamit/incridea-store:$GITHUB_SHA"
+          docker build --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" --label "org.opencontainers.image.revision=$GITHUB_SHA" -f Dockerfile -t "$tag" .
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            printf '%s' "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            docker push "$tag"
+            image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag")
+            echo "digest=${image#*@}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Attest build provenance
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/incridea-nmamit/incridea-store
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true
+  register:
+    name: register
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_PORTAL_ENABLED == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    steps:
+      - name: Register verified staging candidate
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          tag="ghcr.io/incridea-nmamit/incridea-store:$GITHUB_SHA"
+          docker pull "$tag"
+          export IMAGE=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag")
+          oidc=$(curl --fail --silent --show-error -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https%3A%2F%2Fdeploy.incridea.in" | jq -r .value)
+          python3 - <<'PY' > candidate.json
+          import json,os
+          json.dump({'applicationId':'incridea-store','sha':os.environ['GITHUB_SHA'],'image':os.environ['IMAGE'],'runId':os.environ['GITHUB_RUN_ID'],'workflow':'.github/workflows/deploy-ci.yml'},open('candidate.json','w'))
+          PY
+          curl --fail --silent --show-error --proto '=https' --tlsv1.2 -H "Authorization: Bearer $oidc" -H 'Content-Type: application/json' --data-binary @candidate.json https://deploy.incridea.in/api/v1/ci/releases

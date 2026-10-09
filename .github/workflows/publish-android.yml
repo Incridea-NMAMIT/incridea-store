@@ -24,6 +24,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
+    if: github.event_name != 'schedule' || (vars.STORE_PUBLISH_ENABLED == 'true' && vars.STORE_GITHUB_APP_ID != '' && vars.STORE_PUBLISH_SINCE != '' && vars.STORE_SIGNING_FINGERPRINTS != '')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -50,6 +51,7 @@ jobs:
           SOURCE_RUN_ID: ${{ inputs.run_id || github.event.client_payload.run_id }}
           SOURCE_TOKEN: ${{ steps.source.outputs.token }}
           STORE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLICATION_SINCE: ${{ vars.STORE_PUBLISH_SINCE }}
           SIGNING_FINGERPRINTS: ${{ vars.STORE_SIGNING_FINGERPRINTS }}
         run: |
           export APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"

@@ -24,7 +24,7 @@ jobs:
       - run: npm test
   application:
     needs: validate
-    uses: Incridea-NMAMIT/incridea-deploy/.github/workflows/application-ci.yml@main
+    uses: ./.github/workflows/store-ci.yml
     with:
       application_id: incridea-store
       dockerfile: Dockerfile
