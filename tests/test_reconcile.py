@@ -11,7 +11,7 @@ scripts=Path(__file__).parents[1]/'scripts'
 spec=importlib.util.spec_from_file_location('publish',scripts/'publish.py');publish=importlib.util.module_from_spec(spec);spec.loader.exec_module(publish)
 with patch.dict(sys.modules,{'publish':publish}):
     spec=importlib.util.spec_from_file_location('recovery',scripts/'reconcile.py');recovery=importlib.util.module_from_spec(spec);spec.loader.exec_module(recovery)
-REPO='Incridea-NMAMIT/incridea-dashboard';PACKAGE='in.incridea.dashboard'
+REPO='Incridea-NMAMIT/incridea-operations';PACKAGE='in.incridea.pronite'
 
 class ReconcileTests(unittest.TestCase):
     def test_recovery_processes_more_than_twenty_runs_and_skips_before_cutover(self):
@@ -27,7 +27,7 @@ class ReconcileTests(unittest.TestCase):
             return [{'name':'Signed Android release (android)','conclusion':'success'}]
         github.pages.side_effect=pages
         processed=[]
-        with patch.dict(os.environ,{'SOURCE_TOKEN':'fixture','STORE_TOKEN':'fixture','PUBLICATION_SINCE':'2026-10-09T00:00:00Z'}),patch.object(recovery,'Github',return_value=github),patch.object(recovery,'SOURCES',{REPO:{PACKAGE:'dashboard'}}),patch.object(recovery,'main',side_effect=lambda:processed.append(os.environ['SOURCE_RUN_ID'])):
+        with patch.dict(os.environ,{'SOURCE_TOKEN':'fixture','STORE_TOKEN':'fixture','PUBLICATION_SINCE':'2026-10-09T00:00:00Z'}),patch.object(recovery,'Github',return_value=github),patch.object(recovery,'SOURCES',{REPO:{PACKAGE:'pronite'}}),patch.object(recovery,'main',side_effect=lambda:processed.append(os.environ['SOURCE_RUN_ID'])):
             recovery.reconcile()
         self.assertEqual(set(processed),{str(i) for i in range(1,25)}-{'5'})
     def test_cutover_requires_timezone(self):

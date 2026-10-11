@@ -11,7 +11,7 @@ import zipfile
 
 spec=importlib.util.spec_from_file_location('publisher',Path(__file__).parents[1]/'scripts/publish.py')
 p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
-REPO='Incridea-NMAMIT/incridea-dashboard';PACKAGE='in.incridea.dashboard';SHA='b'*40
+REPO='Incridea-NMAMIT/incridea-operations';PACKAGE='in.incridea.pronite';SHA='b'*40
 
 class GithubFixture:
     def __init__(self):
@@ -49,9 +49,9 @@ class GithubFixture:
         self.assets[release_id]=[asset];return asset
 
 class RecoveryTests(unittest.TestCase):
-    def test_matrix_rejects_unapproved_later_draft_before_any_publication(self):
+    def test_rejects_unapproved_pronite_draft_before_publication(self):
         repository='Incridea-NMAMIT/incridea-operations'
-        packages={'in.incridea.operations':'operations','in.incridea.pronite':'pronite'}
+        packages={'in.incridea.pronite':'pronite'}
         class MatrixFixture(GithubFixture):
             def optional(self,path,source=False):
                 if '/releases/tags/pronite-' in path:return {'id':99,'draft':True}
@@ -90,8 +90,9 @@ class RecoveryTests(unittest.TestCase):
             snapshot=json.dumps(github.catalog)
             p.main();self.assertEqual(json.dumps(github.catalog),snapshot);self.assertEqual(github.uploads,1)
     def test_publication_rejects_unknown_repository_before_network_access(self):
-        with patch.dict(os.environ,{'SOURCE_REPOSITORY':'attacker/repo','SOURCE_RUN_ID':'123'}),patch.object(p,'Github') as github:
-            with self.assertRaises(ValueError):p.main()
-            github.assert_not_called()
+        for repository in ['attacker/repo', 'Incridea-NMAMIT/incridea-dashboard']:
+            with self.subTest(repository=repository), patch.dict(os.environ,{'SOURCE_REPOSITORY':repository,'SOURCE_RUN_ID':'123'}),patch.object(p,'Github') as github:
+                with self.assertRaises(ValueError):p.main()
+                github.assert_not_called()
 
 if __name__=='__main__':unittest.main()

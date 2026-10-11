@@ -16,8 +16,7 @@ import zipfile
 
 STORE = 'Incridea-NMAMIT/incridea-store'
 SOURCES = {
-    'Incridea-NMAMIT/incridea-dashboard': {'in.incridea.dashboard': 'dashboard'},
-    'Incridea-NMAMIT/incridea-operations': {'in.incridea.operations': 'operations', 'in.incridea.pronite': 'pronite'},
+    'Incridea-NMAMIT/incridea-operations': {'in.incridea.pronite': 'pronite'},
     'Incridea-NMAMIT/incridea-deploy': {'in.incridea.deploy': 'deploy'},
 }
 MAX_ARCHIVE = 512 * 1024 * 1024

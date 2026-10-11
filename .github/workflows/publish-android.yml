@@ -10,7 +10,6 @@ on:
         type: choice
         required: true
         options:
-          - Incridea-NMAMIT/incridea-dashboard
           - Incridea-NMAMIT/incridea-operations
           - Incridea-NMAMIT/incridea-deploy
       run_id:
@@ -41,7 +40,6 @@ jobs:
           private-key: ${{ secrets.STORE_GITHUB_APP_PRIVATE_KEY }}
           owner: Incridea-NMAMIT
           repositories: |
-            incridea-dashboard
             incridea-operations
             incridea-deploy
           permission-actions: read
